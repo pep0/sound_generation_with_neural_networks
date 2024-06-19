@@ -5,16 +5,18 @@ LEARNING_RATE = 0.0005
 BATCH_SIZE = 32
 EPOCHS = 20
 
-def load_mnist():
-    (x_train, y_train), (x_test, y_test) = keras.mnist.load_data()
 
-    '''Add normalization and reshape, add extra dimension'''
+def load_mnist():
+    (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+
+    """Add normalization and reshape, add extra dimension"""
     x_train = x_train.astype("float32") / 255
-    x_train = x_train.reshape(x_train.shape, (1,))
+    x_train = x_train.reshape(x_train.shape + (1,))
     x_test = x_test.astype("float32") / 255
-    x_test = x_test.reshape(x_test.shape, (1,))
+    x_test = x_test.reshape(x_test.shape + (1,))
 
     return x_train, y_train, x_test, y_test
+
 
 def train(x_train, learning_rate, batch_size, epochs):
     autoencoder = Autoencoder(
@@ -25,6 +27,12 @@ def train(x_train, learning_rate, batch_size, epochs):
         latent_space_dim=2,
     )
 
+    autoencoder.summary()
+    autoencoder.compile(learning_rate)
+    autoencoder.train(x_train, batch_size, epochs)
+    return autoencoder
+
+
 if __name__ == "__main__":
     x_train, _, _, _ = load_mnist()
-    autoencoder = train(x_train, LEARNING_RATE, BATCH_SIZE, EPOCHS)
+    autoencoder = train(x_train[:500], LEARNING_RATE, BATCH_SIZE, EPOCHS)
