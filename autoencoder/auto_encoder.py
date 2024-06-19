@@ -56,6 +56,11 @@ class Autoencoder:
     def load_weights(self, weights_file):
         self.model.load_weights(weights_file)
 
+    def reconstruct(self, images):
+        latent_representations = self.encoder.predict(images)
+        reconstructed_images = self.decoder.predict(latent_representations)
+        return reconstructed_images, latent_representations
+
     @classmethod
     def load(cls, dir="."):
         parameters_file = os.path.join(dir, "parameters.pkl")
