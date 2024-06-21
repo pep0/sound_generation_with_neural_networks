@@ -17,7 +17,7 @@ def load_mnist():
 
     return x_train, y_train, x_test, y_test
 
-
+@tf.function
 def train(x_train, learning_rate, batch_size, epochs):
     vae = VAE(
         input_shape=(28, 28, 1),

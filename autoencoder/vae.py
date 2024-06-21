@@ -12,32 +12,9 @@ import pickle
 class Sampling(keras.Layer):
     def call(self, inputs):
         mu, log_var = inputs
-        batch = tf.shape(mu)[0]
-        dim = tf.shape(mu)[1]
-        epsilon = tf.random.normal(shape=(batch, dim))
-        return mu + tf.exp(0.5 * log_var) * epsilon
+        epsilon = tf.keras.random.normal(shape=tf.keras.backend.shape(mu))
+        return mu + tf.keras.ops.exp(0.5 * log_var) * epsilon
     
-class VAELoss(tf.keras.losses.Loss):
-    def __init__(self, mu, log_variance, reconstruction_loss_weight=1000):
-        super(VAELoss, self).__init__()
-        self.mu = mu
-        self.log_variance = log_variance
-        self.reconstruction_loss_weight = reconstruction_loss_weight
-
-    def call(self, y_true, y_pred):
-        reconstruction_loss = self._calculate_reconstruction_loss(y_true, y_pred)
-        kl_loss = self._calculate_kl_loss()
-        combined_loss = self.reconstruction_loss_weight * reconstruction_loss + kl_loss
-        return combined_loss
-
-    def _calculate_reconstruction_loss(self, y_true, y_pred):
-        error = y_true - y_pred
-        reconstruction_loss = tf.reduce_mean(tf.square(error), axis=[1])
-        return reconstruction_loss
-    @tf.function
-    def _calculate_kl_loss(self):
-        kl_loss = -0.5 * tf.reduce_sum(1 + self.log_variance - tf.square(self.mu) - tf.exp(self.log_variance), axis=1)
-        return kl_loss
 
 class VAE:
     """
@@ -73,10 +50,7 @@ class VAE:
     def compile(self, learning_rate=0.0001):
         optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
 
-        vae_loss = VAELoss(self.mu, self.log_variance, self.reconstruction_loss_weight)
-        
-        
-        self.model.compile(optimizer=optimizer, loss=vae_loss, )
+        self.model.compile(optimizer=optimizer, loss=self._calculate_loss_sum )
 
     def train(self, x_train, batch_size, num_epochs):
         self.model.fit(
@@ -107,7 +81,23 @@ class VAE:
         vae.load_weights(weights_file)
         return vae
 
+    def _calculate_loss_sum(self, y_true, y_pred):
+        reconstruction_loss = self._calculate_reconstruction_loss(y_true, y_pred)
+        kl_loss = self._calculate_kl_loss()
+        combined_loss = self.reconstruction_loss_weight * reconstruction_loss + kl_loss
+        return combined_loss
 
+    def _calculate_reconstruction_loss(self, y_true, y_pred):
+        error = y_true - y_pred
+        reconstruction_loss = tf.keras.ops.mean(tf.keras.ops.square(error), axis=[1])
+
+        return reconstruction_loss
+    
+
+    def _calculate_kl_loss(self):
+        kl_loss = -0.5 * tf.keras.ops.sum(1 + self.log_variance - tf.keras.ops.square(self.mu) - tf.keras.ops.exp(self.log_variance), axis=1)
+        return kl_loss
+    
     def _create_folder_if_it_doesnt_exist(self, dir):
         if not os.path.exists(dir):
             os.makedirs(dir)
