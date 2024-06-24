@@ -8,13 +8,25 @@ import numpy as np
 import os
 import pickle
 
+# Define the KL divergence loss calculation
+def kl_divergence_loss(mu, log_variance):
+    kl_loss = -0.5 * tf.math.reduce_sum(1 + log_variance - tf.math.square(mu) - tf.math.exp(log_variance), axis=1)
+    return kl_loss
 
-class Sampling(keras.Layer):
+class Bottleneck(keras.layers.Layer):
+
+    def __init__(self, latent_space_dim):
+        super().__init__()
+        self.latent_space_dim = latent_space_dim
+        self.mu = keras.layers.Dense(self.latent_space_dim, name="mu")
+        self.log_variance = keras.layers.Dense(self.latent_space_dim, name="log_variance")
+
     def call(self, inputs):
-        mu, log_var = inputs
-        epsilon = tf.keras.random.normal(shape=tf.keras.backend.shape(mu))
-        return mu + tf.keras.ops.exp(0.5 * log_var) * epsilon
-    
+        mu = self.mu(inputs)
+        log_variance = self.log_variance(inputs)
+        kl_loss = kl_divergence_loss(mu, log_variance)
+        self.add_loss(tf.reduce_mean(kl_loss))  # Optionally add KL loss as layer's loss
+        return  mu, log_variance
 
 class VAE:
     """
@@ -70,7 +82,7 @@ class VAE:
         reconstructed_images = self.decoder.predict(latent_representations)
         return reconstructed_images, latent_representations
 
-    def load(cls, dir="."):
+    def load(cls, dir=".\model"):
         parameters_file = os.path.join(dir, "parameters.pkl")
         weights_file = os.path.join(dir, "vae.weights.h5")
 
@@ -83,19 +95,20 @@ class VAE:
 
     def _calculate_loss_sum(self, y_true, y_pred):
         reconstruction_loss = self._calculate_reconstruction_loss(y_true, y_pred)
-        kl_loss = self._calculate_kl_loss()
-        combined_loss = self.reconstruction_loss_weight * reconstruction_loss + kl_loss
+        #kl_loss = self._calculate_kl_loss()
+        combined_loss = self.reconstruction_loss_weight * reconstruction_loss #+ kl_loss
         return combined_loss
 
     def _calculate_reconstruction_loss(self, y_true, y_pred):
         error = y_true - y_pred
-        reconstruction_loss = tf.keras.ops.mean(tf.keras.ops.square(error), axis=[1])
+        reconstruction_loss = tf.keras.ops.mean(tf.keras.ops.square(error), axis=[1,2,3])
 
         return reconstruction_loss
     
-
     def _calculate_kl_loss(self):
-        kl_loss = -0.5 * tf.keras.ops.sum(1 + self.log_variance - tf.keras.ops.square(self.mu) - tf.keras.ops.exp(self.log_variance), axis=1)
+        kl_loss = -0.5 * tf.reduce_sum(1 + self.log_variance - tf.square(self.mu) - tf.exp(self.log_variance), axis=1)
+
+        #kl_loss = -0.5 * tf.math.reduce_sum(1 + self.log_variance - tf.math.square(self.mu._keras_tensor) - tf.exp(self.log_variance), axis=1)
         return kl_loss
     
     def _create_folder_if_it_doesnt_exist(self, dir):
@@ -164,29 +177,23 @@ class VAE:
         self._shape_before_bottleneck = x.shape[1:]  # [2, 7, 7, 32]
 
         x = keras.layers.Flatten()(x)
-        self.mu = keras.layers.Dense(self.latent_space_dim, name="mu")(x)
-        self.log_variance = keras.layers.Dense(
-            self.latent_space_dim, name="log_variance"
-        )(x)
+        self.mu, self.log_variance = Bottleneck(latent_space_dim=self.latent_space_dim)(x)
 
         """A lambda layer wrapes a function into the tensorflow graph"""
 
-        z = Sampling()([self.mu, self.log_variance])
+        def sample_point_from_normal_distribution(args):
+            mu, log_variance = args
 
 
-#        def sample_point_from_normal_distribution(args):
-#            mu, log_variance = args
-#
-#
-#            epsilon = K.random_normal(shape=K.shape(self.mu), mean=0.0, stddev=1.0)
-#            sampled_point = mu + K.exp(log_variance / 2) * epsilon
-#            return sampled_point
-#
-#        x = keras.layers.Lambda(
-#            sample_point_from_normal_distribution, name="encoder_output" , output_shape=(self.latent_space_dim,)
-#        )([self.mu, self.log_variance])
+            epsilon = tf.random.normal(shape=tf.shape(mu), mean=0.0, stddev=1.0)
+            sampled_point = mu + tf.math.exp(log_variance / 2) * epsilon
+            return sampled_point
 
-        return z
+        x = keras.layers.Lambda(
+            sample_point_from_normal_distribution, name="encoder_output" , output_shape=(self.latent_space_dim,)
+        )([self.mu, self.log_variance])
+
+        return x
 
     def _build_decoder(self):
         decoder_input = self._add_decoder_input()
