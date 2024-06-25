@@ -11,3 +11,5 @@ venv/
 
 # saved model
 model
+audio_data
+save_files
