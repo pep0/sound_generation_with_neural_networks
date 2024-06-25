@@ -42,7 +42,7 @@ class VAE:
         self.conv_kernels = conv_kernels  # [3, 5, 3]
         self.conv_strides = conv_strides  # [1, 2, 2]
         self.latent_space_dim = latent_space_dim  # 2
-        self.reconstruction_loss_weight = 1000
+        self.reconstruction_loss_weight = 1000000
 
         self.encoder = None
         self.decoder = None
@@ -82,7 +82,8 @@ class VAE:
         reconstructed_images = self.decoder.predict(latent_representations)
         return reconstructed_images, latent_representations
 
-    def load(cls, dir=".\model"):
+    @classmethod
+    def load(cls, dir="."):
         parameters_file = os.path.join(dir, "parameters.pkl")
         weights_file = os.path.join(dir, "vae.weights.h5")
 
